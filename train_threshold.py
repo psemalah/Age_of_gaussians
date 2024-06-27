@@ -60,7 +60,8 @@ def initialize_params(seq, md):
                  'denom': torch.zeros(params['means3D'].shape[0]).cuda().float(),
                 #===========================================================================================================
                 #'updated' is a flag to indicate whether the point has been updated in the current iteration
-                 'updated': np.ones((seg.shape[0],), dtype=bool)}  # Initialize as True for first-time computation
+                 'updated': torch.ones(seg.shape[0]).cuda().float()}  # Initialize as True for first-time computation
+                #  'updated': torch.tensor([], dtype=bool)}
                 #===========================================================================================================
 
     return params, variables
@@ -107,15 +108,18 @@ def compute_thresholds(var_position, var_orientation, k_position=1.0, k_orientat
 def get_loss(params, curr_data, variables, is_initial_timestep):
     losses = {}
 
-    rendervar = params2rendervar(params, variables)
+    rendervar = params2rendervar(params,variables)
     rendervar['means2D'].retain_grad()
     #===========================================================================================================
-    # Render the image, foward function?
-    #===========================================================================================================    
+    # Render the image, foward function?   
     rendervar['updated'] = variables['updated']
+    # print(f"shape of updated: {rendervar['updated'].shape}")
+    #im, radius, _, = Renderer(raster_settings=curr_data['cam'])(**rendervar)
+    renderer = Renderer(raster_settings=curr_data['cam'], updated=variables['updated'])
+    # renderer.updated = variables['updated']
+
+    im, radius, _, = renderer(**rendervar)
     #===========================================================================================================
- 
-    im, radius, _, = Renderer(raster_settings=curr_data['cam'])(**rendervar)
     curr_id = curr_data['id']
     im = torch.exp(params['cam_m'][curr_id])[:, None, None] * im + params['cam_c'][curr_id][:, None, None]
     losses['im'] = 0.8 * l1_loss_v1(im, curr_data['im']) + 0.2 * (1.0 - calc_ssim(im, curr_data['im']))
@@ -123,7 +127,9 @@ def get_loss(params, curr_data, variables, is_initial_timestep):
 
     segrendervar = params2rendervar(params, variables)
     segrendervar['colors_precomp'] = params['seg_colors']
-    seg, _, _, = Renderer(raster_settings=curr_data['cam'])(**segrendervar)
+
+    renderer_updated  = Renderer(raster_settings=curr_data['cam'], updated=variables['updated'])
+    seg, _, _, = renderer_updated(**segrendervar)
     losses['seg'] = 0.8 * l1_loss_v1(seg, curr_data['seg']) + 0.2 * (1.0 - calc_ssim(seg, curr_data['seg']))
 
     if not is_initial_timestep:

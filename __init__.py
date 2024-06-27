@@ -60,7 +60,6 @@ class _RasterizeGaussians(torch.autograd.Function):
         updated  # Added updated parameter
         #=======================================================================================
     ):
-
         # Restructure arguments the way that the C++ lib expects them
         args = (
             raster_settings.bg, 
@@ -157,13 +156,12 @@ class GaussianRasterizationSettings(NamedTuple):
     prefiltered : bool
 
 class GaussianRasterizer(nn.Module):
-    def __init__(self, raster_settings):
+    def __init__(self, raster_settings, updated):
         super().__init__()
         self.raster_settings = raster_settings
         #=======================================================================================
-        self.updated = None  # Initialize the updated flag as None
+        self.updated = updated  # Initialize the updated flag as None
         #=======================================================================================
-
 
     def markVisible(self, positions):
         # Mark visible points (based on frustum culling for camera) with a boolean 
@@ -176,7 +174,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, updated=None):
         
         raster_settings = self.raster_settings
 
@@ -198,8 +196,8 @@ class GaussianRasterizer(nn.Module):
         if cov3D_precomp is None:
             cov3D_precomp = torch.Tensor([])
         #=======================================================================================
-        if self.updated is None:
-            self.updated = torch.ones(means3D.shape[0], dtype=torch.bool, device=means3D.device)
+        # if self.updated is None:
+        #     self.updated = torch.ones(means3D.shape[0], dtype=torch.bool, device=means3D.device)
         #=======================================================================================
 
         # Invoke C++/CUDA rasterization routine
